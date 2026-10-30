@@ -1,0 +1,30 @@
+{
+  "name": "guardbench",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Scenario-driven agentic red teaming in E2B sandboxes",
+  "type": "module",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "bin": {
+    "guardbench": "./src/cli.ts"
+  },
+  "scripts": {
+    "guardbench": "tsx src/cli.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "e2b": "^2.62.0",
+    "wb-red-team": "github:votal-ai-hq/ai-red-teaming#e976193e8a645e4805a024eae4355422774d5fa1",
+    "yaml": "^2.9.1",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.12"
+  }
+}
