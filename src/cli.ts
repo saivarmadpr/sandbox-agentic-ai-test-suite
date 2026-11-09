@@ -13,7 +13,8 @@ import { WorldSchema } from "./world.js";
 const USAGE = `Usage:
   guardbench plan <scenario.yaml> [--out <dir>]        Generate plan.json + world.json
   guardbench run  <dir> [--backend local|e2b]          Attack the target and score it
-     <dir> must contain world.json + plan.json (+ config.json). Defaults to --backend local.`;
+     <dir> must contain world.json + plan.json (+ config.json). Defaults to --backend local.
+  guardbench ui   [--port 4173]                        Open the dashboard (start runs, watch the live trace)`;
 
 const tag = (label: string) => `\x1b[36m[${label.padEnd(5)}]\x1b[0m`;
 
@@ -76,6 +77,10 @@ async function main(): Promise<void> {
   const [command, ...rest] = process.argv.slice(2);
   if (command === "plan") return plan(rest);
   if (command === "run") return run(rest);
+  if (command === "ui") {
+    const { values } = parseArgs({ args: rest, options: { port: { type: "string", default: "4173" } } });
+    return (await import("./ui.js")).serveUi(Number(values.port));
+  }
   console.log(USAGE);
   process.exitCode = command ? 1 : 0;
 }

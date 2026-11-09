@@ -1,0 +1,737 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GuardBench</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Red+Hat+Display:wght@500;700;900&family=Red+Hat+Mono:wght@400;500&family=Red+Hat+Text:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --paper: #F6F7F9; --surface: #FFFFFF; --ink: #16202E; --muted: #5B6878; --line: #DDE2E8;
+  --trace: #101B2B; --trace-line: #22314A; --trace-ink: #D5DEEA; --trace-muted: #7F8FA6;
+  --breach: #D6336C; --held: #0E9F8A; --attacker: #E8A33D; --target: #7CC4F5; --primary: #4353D8;
+  --display: "Red Hat Display", system-ui, sans-serif;
+  --text: "Red Hat Text", system-ui, sans-serif;
+  --mono: "Red Hat Mono", ui-monospace, Menlo, monospace;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--paper); color: var(--ink); font: 15px/1.5 var(--text); }
+h1, h2, h3 { font-family: var(--display); margin: 0; }
+button, select, input { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+[hidden] { display: none !important; }
+.mono { font-family: var(--mono); font-size: 13px; }
+.muted { color: var(--muted); }
+
+header.top { display: flex; align-items: baseline; gap: 16px; padding: 14px 24px; background: var(--surface); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+header.top h1 { font-weight: 900; font-size: 22px; letter-spacing: -0.02em; }
+header.top p { margin: 0; color: var(--muted); flex: 1; min-width: 200px; }
+.key { font-size: 13px; color: var(--muted); margin-left: 14px; white-space: nowrap; }
+.key::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--held); margin-right: 6px; }
+.key.missing::before { background: var(--breach); }
+
+.layout { display: grid; grid-template-columns: 310px minmax(0, 1fr); align-items: start; }
+aside { padding: 20px; border-right: 1px solid var(--line); min-height: calc(100vh - 58px); background: var(--surface); }
+main { padding: 24px; min-width: 0; }
+@media (max-width: 860px) { .layout { grid-template-columns: 1fr; } aside { min-height: 0; border-right: 0; border-bottom: 1px solid var(--line); } main { padding: 16px; } }
+
+aside h2 { font-size: 16px; margin-bottom: 12px; }
+form label, form legend { display: block; font-weight: 500; font-size: 13px; margin-bottom: 4px; padding: 0; }
+form fieldset { border: 0; padding: 0; margin: 0 0 14px; }
+form .field { margin-bottom: 14px; }
+select, input[type=number] { width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+.note { font-size: 12px; color: var(--muted); margin: 4px 0 0; }
+.seg { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.seg label { margin: 0; text-align: center; padding: 8px 4px; cursor: pointer; font-weight: 500; }
+.seg input, .checks input { position: absolute; opacity: 0; }
+.seg label:has(input:checked) { background: #ECEEFC; color: var(--primary); }
+.seg label:has(input:disabled) { color: #A9B2BE; cursor: not-allowed; }
+.seg label:has(input:focus-visible), .checks label:has(input:focus-visible) { outline: 2px solid var(--primary); outline-offset: -2px; }
+.checks { display: flex; gap: 8px; }
+.checks label { flex: 1; margin: 0; text-align: center; padding: 7px 0; border: 1px solid var(--line); border-radius: 6px; cursor: pointer; font-family: var(--mono); }
+.checks label:has(input:checked) { background: var(--ink); color: #fff; border-color: var(--ink); }
+.btn { border: 0; border-radius: 6px; padding: 10px 16px; font-weight: 700; cursor: pointer; background: var(--primary); color: #fff; }
+.btn:hover { filter: brightness(1.08); }
+.btn:disabled { opacity: .5; cursor: progress; }
+.btn.wide { width: 100%; }
+.btn.stop { background: var(--surface); color: var(--breach); border: 1px solid var(--breach); }
+.error { color: var(--breach); font-size: 13px; margin: 8px 0 0; }
+
+.runs { list-style: none; margin: 0; padding: 0; }
+.runs li button { width: 100%; text-align: left; background: none; border: 0; border-left: 3px solid transparent; padding: 10px 10px 10px 12px; cursor: pointer; border-bottom: 1px solid var(--line); }
+.runs li button:hover { background: var(--paper); }
+.runs li button[aria-current=true] { border-left-color: var(--primary); background: var(--paper); }
+.runs .name { font-weight: 700; display: flex; justify-content: space-between; gap: 8px; }
+.runs .sub { font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; gap: 8px; }
+.status { font-size: 12px; font-weight: 500; white-space: nowrap; }
+.status.running, .status.planning { color: var(--primary); }
+.status.completed { color: var(--held); }
+.status.failed, .status.stopped, .status.interrupted { color: var(--breach); }
+
+.empty { max-width: 46ch; margin: 12vh auto; text-align: center; color: var(--muted); }
+.empty h2 { color: var(--ink); font-size: 24px; margin-bottom: 8px; }
+
+.runhead { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; margin-bottom: 20px; }
+.runhead h2 { font-size: 26px; font-weight: 900; letter-spacing: -0.02em; }
+.runhead > div { flex: 1; min-width: 240px; }
+.runhead dl { display: flex; flex-wrap: wrap; gap: 4px 20px; margin: 6px 0 0; font-size: 13px; }
+.runhead dt { color: var(--muted); display: inline; }
+.runhead dd { display: inline; margin: 0 0 0 4px; }
+
+/* The guard ladder: attack success falling as guards are added. */
+.ladder { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 6px 20px; margin-bottom: 24px; }
+.rung { display: grid; grid-template-columns: 150px minmax(80px, 1fr) 92px minmax(0, 300px); gap: 18px; align-items: center; padding: 14px 0; }
+.rung + .rung { border-top: 1px solid var(--line); }
+.rung .lvl { font-family: var(--display); font-weight: 700; font-size: 18px; }
+.rung .lvl small { display: block; font: 400 12px var(--text); color: var(--muted); }
+.bar { height: 22px; background: repeating-linear-gradient(90deg, var(--paper) 0 9px, var(--line) 9px 10px); border-radius: 3px; overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--breach); transition: width .5s ease; }
+.rung .asr { font: 900 30px/1 var(--display); text-align: right; font-variant-numeric: tabular-nums; }
+.rung .asr.zero { color: var(--held); }
+.rung .asr small { display: block; font: 400 11px var(--text); color: var(--muted); margin-top: 3px; }
+.rung .stats { font-size: 13px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 2px 16px; }
+.rung .stats b { color: var(--ink); font-weight: 500; }
+@media (max-width: 1100px) { .rung { grid-template-columns: 110px 1fr 80px; } .rung .stats { grid-column: 1 / -1; } }
+
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); flex-wrap: wrap; align-items: center; }
+.tabs button { background: none; border: 0; border-bottom: 2px solid transparent; padding: 8px 12px; cursor: pointer; font-weight: 500; color: var(--muted); }
+.tabs button[aria-selected=true] { color: var(--ink); border-bottom-color: var(--ink); }
+.tabs .cmp { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 13px; padding-bottom: 6px; }
+.tabs .cmp select { width: auto; max-width: 260px; padding: 5px 8px; }
+.tablewrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-top: 0; border-radius: 0 0 10px 10px; margin-bottom: 24px; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th { text-align: left; font-weight: 500; font-size: 12px; color: var(--muted); padding: 8px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+td { padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+tr:last-child td { border-bottom: 0; }
+tbody tr.pick { cursor: pointer; }
+tbody tr.pick:hover, tbody tr.pick[aria-selected=true] { background: var(--paper); }
+td.detail { background: var(--paper); font-size: 13px; }
+td.detail p { margin: 0 0 4px; max-width: 80ch; }
+.verdict { font-weight: 700; white-space: nowrap; }
+.verdict.broke, .verdict.refused { color: var(--breach); }
+.verdict.held, .verdict.served { color: var(--held); }
+.verdict.running { color: var(--primary); }
+.up { color: var(--breach); } .down { color: var(--held); }
+.blank { padding: 28px 16px; text-align: center; color: var(--muted); }
+
+/* Live activity: the attacker's reasoning and the conversation, as it happens. */
+.activity { background: var(--trace); color: var(--trace-ink); border-radius: 10px; overflow: hidden; }
+.acthead { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--trace-line); }
+.acthead h3 { font-size: 15px; color: #fff; margin-right: 4px; }
+.acthead .count { font-size: 12px; color: var(--trace-muted); flex: 1; }
+.chip { background: none; border: 1px solid var(--trace-line); color: var(--trace-muted); border-radius: 99px; padding: 3px 11px; font-size: 12px; cursor: pointer; }
+.chip[aria-pressed=true] { color: #fff; border-color: var(--trace-muted); background: var(--trace-line); }
+.activity :focus-visible { outline-color: var(--target); }
+.scroll { height: 460px; overflow-y: auto; font: 13px/1.55 var(--mono); }
+.activity.tall .scroll { height: 80vh; }
+.row { display: grid; grid-template-columns: 70px 76px 74px minmax(0, 1fr); gap: 10px; padding: 3px 14px; }
+.row .t, .row .who { color: var(--trace-muted); }
+.row .x { white-space: pre-wrap; overflow-wrap: anywhere; }
+.row .x.clamp { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; cursor: pointer; }
+.row.think .k, .row.think .x { color: var(--attacker); }
+.row.think .x { font-style: italic; }
+.row.msg .k, .row.msg .x { color: #fff; }
+.row.reply .k, .row.reply .x { color: var(--target); }
+.row.budget, .row.env, .row.log { color: var(--trace-muted); }
+.row.error .k, .row.error .x { color: #FF8FB0; }
+.row.level { display: block; margin-top: 10px; padding: 8px 14px; border-top: 1px solid var(--trace-line); font: 700 14px var(--display); color: #fff; }
+.row.hypothesis { margin-top: 8px; color: #fff; font-weight: 500; }
+.row.verdict { margin: 4px 0; padding: 6px 14px; font-weight: 400; }
+.row.verdict.broke { background: rgba(214, 51, 108, .22); } .row.verdict.broke .k { color: #FF8FB0; font-weight: 500; }
+.row.verdict.held { background: rgba(14, 159, 138, .16); } .row.verdict.held .k { color: #5FD9C6; font-weight: 500; }
+.row.benign .k { color: #5FD9C6; } .row.benign.refused .k { color: #FF8FB0; }
+@media (max-width: 700px) { .row { grid-template-columns: 60px minmax(0, 1fr); } .row .t, .row .who { display: none; } }
+.actfoot { display: flex; align-items: center; gap: 10px; padding: 8px 14px; border-top: 1px solid var(--trace-line); font: 12px var(--mono); color: var(--trace-muted); min-height: 38px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--trace-muted); flex: none; }
+.live .dot { background: var(--attacker); animation: pulse 1.2s infinite; }
+@keyframes pulse { 50% { opacity: .3; } }
+.actfoot span { flex: 1; }
+.latest { background: var(--target); color: var(--trace); border: 0; border-radius: 99px; padding: 3px 12px; font: 500 12px var(--text); cursor: pointer; }
+@media (prefers-reduced-motion: reduce) { .live .dot { animation: none; } .bar i { transition: none; } }
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>GuardBench</h1>
+  <p>Red-team an AI agent in a sandbox and see which guardrails hold.</p>
+  <div id="keys"></div>
+</header>
+<div class="layout">
+  <aside>
+    <h2>New run</h2>
+    <form id="new">
+      <div class="field">
+        <label for="source">Scenario</label>
+        <select id="source"></select>
+        <p class="note" id="source-note"></p>
+      </div>
+      <fieldset>
+        <legend>Where the target runs</legend>
+        <div class="seg">
+          <label><input type="radio" name="backend" value="local" checked><span>Local process</span></label>
+          <label><input type="radio" name="backend" value="e2b"><span>E2B sandbox</span></label>
+        </div>
+        <p class="note" id="backend-note"></p>
+      </fieldset>
+      <fieldset>
+        <legend>Hardening levels</legend>
+        <div class="checks" id="levels"></div>
+        <p class="note">L0 prompt rules only, L1 some code guards, L2 all guards.</p>
+      </fieldset>
+      <div class="field">
+        <label for="budget">Requests per level</label>
+        <input id="budget" type="number" min="1" max="1000" value="40">
+      </div>
+      <button class="btn wide" id="start">Start run</button>
+      <p class="error" id="form-error" role="alert" hidden></p>
+    </form>
+    <h2 style="margin-top:28px">Runs</h2>
+    <ul class="runs" id="runs"></ul>
+  </aside>
+  <main>
+    <div class="empty" id="empty">
+      <h2>No run selected</h2>
+      <p>Pick a run on the left, or start a new one to watch the attacker work.</p>
+    </div>
+    <div id="run" hidden>
+      <div class="runhead">
+        <div>
+          <h2 id="run-title"></h2>
+          <dl id="run-meta"></dl>
+        </div>
+        <button class="btn stop" id="stop" hidden>Stop run</button>
+      </div>
+      <section class="ladder" id="ladder" aria-label="Attack success by hardening level"></section>
+      <div class="tabs" role="tablist">
+        <button role="tab" data-tab="findings">Findings</button>
+        <button role="tab" data-tab="all">All hypotheses</button>
+        <button role="tab" data-tab="benign">Benign controls</button>
+        <label class="cmp">Compare with another run <select id="compare"></select></label>
+      </div>
+      <div class="tablewrap" id="table"></div>
+      <section class="activity" id="activity">
+        <div class="acthead">
+          <h3>Live activity</h3>
+          <span class="count" id="trace-count"></span>
+          <button class="chip" data-kind="think" aria-pressed="true">Reasoning</button>
+          <button class="chip" data-kind="msg" aria-pressed="true">Attacks</button>
+          <button class="chip" data-kind="reply" aria-pressed="true">Replies</button>
+          <button class="chip" data-kind="verdict" aria-pressed="true">Verdicts</button>
+          <button class="chip" id="focus-clear" hidden></button>
+          <button class="chip" id="expand" aria-pressed="false">Taller</button>
+        </div>
+        <div class="scroll" id="trace" tabindex="0" aria-label="Activity trace"></div>
+        <div class="actfoot" id="foot">
+          <i class="dot"></i><span id="status">No activity yet.</span>
+          <button class="latest" id="latest" hidden>Latest</button>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+const pct = (x) => (x == null ? "–" : Math.round(x * 100) + "%");
+const clock = (ts) => (ts ? new Date(ts).toLocaleTimeString([], { hour12: false }) : "");
+const when = (ts) => (ts ? new Date(ts).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "");
+const dur = (a, b) => {
+  if (!a) return "";
+  const s = Math.max(0, Math.round((new Date(b ?? Date.now()) - new Date(a)) / 1000));
+  return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`;
+};
+const LEVEL_NOTE = { L0: "prompt rules only", L1: "some code guards", L2: "all code guards" };
+const BACKEND = { local: "Local process", e2b: "E2B sandbox" };
+const isLive = (status) => status === "running" || status === "planning";
+
+async function api(path, body) {
+  const r = await fetch(path, body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : undefined);
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || `Request failed (${r.status})`);
+  return j;
+}
+
+let app = { runs: [], sources: [], levels: [], keys: {} };
+let cur = null; // the run on screen: detail from the server plus state reduced from its events
+let other = null; // the run being compared against
+
+// ── Sidebar: new-run form and run list ──
+
+let sourceKey = "";
+function renderSidebar() {
+  $("keys").innerHTML = [["openrouter", "OpenRouter"], ["e2b", "E2B"]]
+    .map(([k, name]) => `<span class="key ${app.keys[k] ? "" : "missing"}">${name} key ${app.keys[k] ? "set" : "missing"}</span>`)
+    .join("");
+
+  const key = app.sources.map((s) => s.id).join("|");
+  if (key !== sourceKey) {
+    sourceKey = key;
+    const keep = $("source").value;
+    const group = (kind, label) => {
+      const items = app.sources.filter((s) => s.kind === kind);
+      const text = (s) => (kind === "prepared" ? `${s.label} (${s.id})` : s.label);
+      return items.length ? `<optgroup label="${label}">${items.map((s) => `<option value="${esc(s.id)}">${esc(text(s))}</option>`).join("")}</optgroup>` : "";
+    };
+    $("source").innerHTML = group("prepared", "Ready to attack") + group("scenario", "Plan a new world first");
+    if (keep) $("source").value = keep;
+    sourceNote();
+  }
+  if (!$("levels").children.length) {
+    $("levels").innerHTML = app.levels.map((l) => `<label><input type="checkbox" value="${l}" checked>${l}</label>`).join("");
+  }
+  const e2b = document.querySelector("input[value=e2b]");
+  e2b.disabled = !app.keys.e2b;
+  $("backend-note").textContent = app.keys.e2b ? "" : "Add E2B_API_KEY to .env to use E2B.";
+
+  $("runs").innerHTML = app.runs.length
+    ? app.runs.map((r) => `<li><button data-id="${esc(r.id)}" aria-current="${r.id === cur?.id}">
+        <span class="name"><span>${esc(r.scenario)}</span><span class="status ${r.status}">${r.status}</span></span>
+        <span class="sub"><span>${esc(when(r.started_at))}</span><span>${r.findings == null ? "" : r.findings + (r.findings === 1 ? " finding" : " findings")}</span></span>
+        <span class="sub"><span>${esc(BACKEND[r.backend] ?? "")}</span><span>${dur(r.started_at, r.ended_at)}</span></span>
+      </button></li>`).join("")
+    : `<li class="note">No runs yet. Start one above.</li>`;
+
+  const others = app.runs.filter((r) => r.status === "completed" && r.id !== cur?.id);
+  const picked = other?.summary.id ?? "";
+  $("compare").innerHTML = `<option value="">None</option>` + others.map((r) => `<option value="${esc(r.id)}">${esc(when(r.started_at))}, ${esc(BACKEND[r.backend] ?? "")} (${r.findings ?? 0} broke)</option>`).join("");
+  $("compare").value = picked;
+}
+
+function sourceNote() {
+  const s = app.sources.find((x) => x.id === $("source").value);
+  $("source-note").textContent = !s ? "" : s.kind === "scenario" ? "Plans a new world and attack plan first. Allow a few extra minutes." : "Reuses this run's world and attack plan.";
+}
+$("source").addEventListener("change", sourceNote);
+
+async function refresh() {
+  try {
+    app = await api("/api/state");
+  } catch {
+    return; // server restarting; the next poll picks it up
+  }
+  if (cur) {
+    const s = app.runs.find((r) => r.id === cur.id);
+    if (s) cur.summary = s;
+  }
+  renderSidebar();
+  if (cur) renderHead();
+}
+
+$("new").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const err = $("form-error");
+  err.hidden = true;
+  $("start").disabled = true;
+  try {
+    const { id } = await api("/api/runs", {
+      source: $("source").value,
+      backend: document.querySelector("input[name=backend]:checked").value,
+      levels: [...document.querySelectorAll("#levels input:checked")].map((i) => i.value),
+      max_requests: Number($("budget").value),
+    });
+    await refresh();
+    await select(id);
+  } catch (ex) {
+    err.textContent = ex.message;
+    err.hidden = false;
+  }
+  $("start").disabled = false;
+});
+
+$("runs").addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-id]");
+  if (b) select(b.dataset.id);
+});
+
+// ── Selected run: load, stream, reduce events into per-level state ──
+
+async function select(id) {
+  cur?.es?.close();
+  let d;
+  try {
+    d = await api(`/api/runs/${id}`);
+  } catch {
+    return;
+  }
+  other = null;
+  cur = { id, summary: d.summary, report: d.report, plan: d.hypotheses, levels: new Map(), meta: null, tab: "findings", focus: null, n: 0, last: null };
+  history.replaceState(null, "", "#" + id);
+  $("empty").hidden = true;
+  $("run").hidden = false;
+  resetTrace();
+  renderSidebar();
+  paint();
+
+  const run = cur;
+  const es = (run.es = new EventSource(`/api/runs/${id}/stream`));
+  es.addEventListener("ev", (e) => run === cur && onEvent(JSON.parse(e.data)));
+  es.addEventListener("log", (e) => run === cur && addRow({ kind: "log", ...JSON.parse(e.data) }));
+  es.addEventListener("end", async () => {
+    es.close(); // the server is done; do not let the browser reconnect and replay
+    const fresh = await api(`/api/runs/${id}`).catch(() => null);
+    if (run !== cur) return;
+    if (fresh) Object.assign(run, { summary: fresh.summary, report: fresh.report });
+    if (!run.levels.size) seedFromReport();
+    refresh();
+    paint();
+  });
+  es.onerror = () => es.close();
+}
+
+const level = (name) => {
+  if (!cur.levels.has(name)) cur.levels.set(name, { hyps: new Map(), benign: [], used: 0, max: null });
+  return cur.levels.get(name);
+};
+
+function onEvent(ev) {
+  const lv = ev.level ? level(ev.level) : null;
+  const hyp = lv?.hyps.get(ev.hid);
+  if (ev.kind === "run") cur.meta = ev;
+  else if (ev.kind === "hypothesis") lv.hyps.set(ev.id, { level: ev.level, id: ev.id, invariant: ev.invariant, title: ev.title, state: "running", requests: 0 });
+  else if (ev.kind === "msg" && hyp) hyp.requests++, lv.used++; // the budget event after each hypothesis corrects any drift
+  else if (ev.kind === "verdict" && hyp) Object.assign(hyp, { state: ev.vulnerable ? "broke" : "held", detail: ev.detail });
+  else if (ev.kind === "benign") lv.benign.push(ev);
+  else if (ev.kind === "budget") Object.assign(lv, { used: ev.used, max: ev.max });
+  if (ev.kind === "hypothesis" || ev.hid) cur.last = { level: ev.level, id: ev.id ?? ev.hid };
+  addRow(ev);
+}
+
+// Older runs may have a report but no event log.
+function seedFromReport() {
+  for (const l of cur.report?.levels ?? []) {
+    const lv = level(l.level);
+    lv.used = l.requests_used;
+    for (const h of l.hypotheses) lv.hyps.set(h.id, { ...h, state: h.vulnerable ? "broke" : "held" });
+    lv.benign = l.benign;
+  }
+}
+
+const order = (names) => [...new Set(names)].sort((a, b) => app.levels.indexOf(a) - app.levels.indexOf(b));
+const levelNames = () => order([...(cur.meta?.levels ?? []), ...(cur.report?.levels ?? []).map((l) => l.level), ...cur.levels.keys()]);
+const allHyps = () => levelNames().flatMap((n) => [...(cur.levels.get(n)?.hyps.values() ?? [])]);
+const fromReport = (lvl, id) => cur.report?.levels.find((l) => l.level === lvl)?.hypotheses.find((h) => h.id === id);
+
+function stats(name) {
+  const lv = cur.levels.get(name);
+  const rep = cur.report?.levels.find((l) => l.level === name);
+  const done = lv ? [...lv.hyps.values()].filter((h) => h.state !== "running") : [];
+  const broke = done.filter((h) => h.state === "broke").length;
+  const refused = lv ? lv.benign.filter((b) => !b.served).length : 0;
+  return {
+    started: !!lv,
+    broke,
+    tested: done.length,
+    asr: rep?.asr ?? (done.length ? broke / done.length : null),
+    refusal: rep?.over_refusal_rate ?? (lv?.benign.length ? refused / lv.benign.length : null),
+    recall: rep?.planted_bug_recall ?? null,
+    used: rep?.requests_used ?? lv?.used ?? 0,
+    max: lv?.max,
+  };
+}
+
+// ── Rendering: header, guard ladder, tables, comparison ──
+
+let painting = false;
+function paint() {
+  if (painting) return;
+  painting = true;
+  requestAnimationFrame(() => {
+    painting = false;
+    if (!cur) return;
+    renderHead();
+    renderLadder();
+    renderTable();
+    flushTrace();
+  });
+}
+
+function renderHead() {
+  const s = cur.summary;
+  $("run-title").textContent = s.scenario;
+  const rows = [
+    ["Status", `<span class="status ${s.status}">${s.status}</span>`],
+    ["Target runs in", esc(BACKEND[s.backend] ?? "unknown")],
+    ["Target model", esc(cur.meta?.target_model ?? cur.report?.target_model ?? "–")],
+    ["Attacker model", esc(cur.meta?.attacker_model ?? cur.report?.attacker_model ?? "–")],
+    ["Started", esc(when(s.started_at))],
+    ["Duration", dur(s.started_at, s.ended_at)],
+  ];
+  $("run-meta").innerHTML = rows.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join("");
+  $("stop").hidden = !isLive(s.status);
+  if (!isLive(s.status)) $("stop").disabled = false;
+  renderStatus();
+}
+
+function renderLadder() {
+  const names = levelNames();
+  $("ladder").innerHTML = names.length
+    ? names.map((n) => {
+        const s = stats(n);
+        const bits = s.started
+          ? [`<b>${s.broke} of ${s.tested}</b> guardrails broke`, `<b>${pct(s.refusal)}</b> honest requests refused`,
+             s.recall == null ? "" : `<b>${pct(s.recall)}</b> planted bugs found`, `<b>${s.used}${s.max ? "/" + s.max : ""}</b> requests`]
+          : ["Waiting to start"];
+        return `<div class="rung">
+          <div class="lvl">${n}<small>${LEVEL_NOTE[n] ?? ""}</small></div>
+          <div class="bar"><i style="width:${Math.round((s.asr ?? 0) * 100)}%"></i></div>
+          <div class="asr ${s.asr === 0 ? "zero" : ""}">${pct(s.asr)}<small>attack success</small></div>
+          <div class="stats">${bits.filter(Boolean).map((b) => `<span>${b}</span>`).join("")}</div>
+        </div>`;
+      }).join("")
+    : `<div class="blank">${cur.summary.status === "planning" ? "Planning the world and the attack hypotheses. Scores appear once the attack starts." : "No results for this run."}</div>`;
+}
+
+const RESULT = { broke: "Broke", held: "Held", running: "Testing" };
+function renderTable() {
+  for (const b of document.querySelectorAll(".tabs [data-tab]")) b.setAttribute("aria-selected", !other && b.dataset.tab === cur.tab);
+  if (other) return renderCompare();
+  const hyps = allHyps();
+  const broke = hyps.filter((h) => h.state === "broke");
+  document.querySelector("[data-tab=findings]").textContent = `Findings (${broke.length})`;
+  document.querySelector("[data-tab=all]").textContent = `All hypotheses (${hyps.length})`;
+
+  if (cur.tab === "benign") {
+    const rows = levelNames().flatMap((n) => (cur.levels.get(n)?.benign ?? []).map((b) => ({ ...b, level: n })));
+    $("table").innerHTML = rows.length
+      ? `<table><thead><tr><th>Level</th><th>Control</th><th>Honest request</th><th>Result</th></tr></thead><tbody>${rows.map((b) =>
+          `<tr><td class="mono">${b.level}</td><td class="mono">${esc(b.id)}</td><td>${esc(b.request)}</td>
+           <td><span class="verdict ${b.served ? "served" : "refused"}">${b.served ? "Served" : "Refused"}</span></td></tr>`).join("")}</tbody></table>`
+      : `<div class="blank">Benign controls run after the attacks at each level. They check the guards do not block honest customers.</div>`;
+    return;
+  }
+  const rows = cur.tab === "findings" ? broke : hyps;
+  if (!rows.length) {
+    const live = isLive(cur.summary.status);
+    $("table").innerHTML = `<div class="blank">${cur.tab === "findings" ? (live ? "No guardrail has broken yet." : "No guardrail broke in this run.") : "No hypotheses tested yet."}</div>`;
+    return;
+  }
+  $("table").innerHTML = `<table><thead><tr><th>Level</th><th>ID</th><th>Attack hypothesis</th><th>Rule</th><th>Result</th><th>Requests</th></tr></thead><tbody>${rows.map((h) => {
+    const rep = fromReport(h.level, h.id) ?? {};
+    const cat = rep.category ?? cur.plan.find((p) => p.id === h.id)?.category ?? "";
+    const open = cur.focus?.level === h.level && cur.focus?.id === h.id;
+    const detail = open
+      ? `<tr><td></td><td class="detail" colspan="5">
+          <p><b>Database check:</b> ${esc(h.detail ?? "still running")}</p>
+          ${rep.attacker_summary ? `<p><b>Attacker's summary:</b> ${esc(rep.attacker_summary)}</p>` : ""}
+          ${rep.error ? `<p><b>Error during the attack:</b> ${esc(rep.error)}</p>` : ""}
+          <p class="muted">Live activity below now shows only this attack.</p></td></tr>`
+      : "";
+    return `<tr class="pick" tabindex="0" data-level="${h.level}" data-hid="${esc(h.id)}" aria-selected="${open}">
+      <td class="mono">${h.level}</td><td class="mono">${esc(h.id)}</td>
+      <td>${esc(h.title)}<div class="muted mono">${esc(cat.replaceAll("_", " "))}</div></td>
+      <td class="mono">${esc(h.invariant)}</td>
+      <td><span class="verdict ${h.state}">${RESULT[h.state]}</span></td><td class="mono">${h.requests ?? ""}</td></tr>${detail}`;
+  }).join("")}</tbody></table>`;
+}
+
+function renderCompare() {
+  const theirs = new Map(other.report.levels.map((l) => [l.level, l]));
+  const delta = (a, b) => (a == null || b == null || a === b ? "" : `<span class="${a > b ? "up" : "down"}">${a > b ? "+" : "−"}${Math.abs(Math.round((a - b) * 100))} pts</span>`);
+  const names = order([...levelNames(), ...theirs.keys()]);
+  const levels = names.map((n) => {
+    const a = stats(n), b = theirs.get(n);
+    return `<tr><td class="mono">${n}</td><td>${pct(a.asr)}</td><td>${pct(b?.asr)}</td><td>${delta(a.asr, b?.asr)}</td>
+      <td>${pct(a.refusal)}</td><td>${pct(b?.over_refusal_rate)}</td><td>${pct(a.recall)}</td><td>${pct(b?.planted_bug_recall)}</td></tr>`;
+  }).join("");
+  const word = (v) => (v == null ? "not tested" : v ? "Broke" : "Held");
+  const mine = new Map(allHyps().filter((h) => h.state !== "running").map((h) => [`${h.level} ${h.id}`, h]));
+  const changed = [];
+  for (const l of other.report.levels) for (const h of l.hypotheses) {
+    const m = mine.get(`${l.level} ${h.id}`);
+    const a = m ? m.state === "broke" : null;
+    if (a !== h.vulnerable) changed.push(`<tr><td class="mono">${l.level}</td><td class="mono">${esc(h.id)}</td><td>${esc(h.title)}</td>
+      <td><span class="verdict ${a ? "broke" : a === false ? "held" : ""}">${word(a)}</span></td>
+      <td><span class="verdict ${h.vulnerable ? "broke" : "held"}">${word(h.vulnerable)}</span></td></tr>`);
+  }
+  const them = `${esc(when(other.summary.started_at))}, ${esc(BACKEND[other.summary.backend] ?? "")}`;
+  $("table").innerHTML = `<table><thead><tr><th>Level</th><th>Attack success, this run</th><th>${them}</th><th>Change</th>
+      <th>Honest requests refused</th><th>Other run</th><th>Planted bugs found</th><th>Other run</th></tr></thead><tbody>${levels}</tbody></table>
+    ${changed.length
+      ? `<table><thead><tr><th>Level</th><th>ID</th><th>Results that differ</th><th>This run</th><th>Other run</th></tr></thead><tbody>${changed.join("")}</tbody></table>`
+      : `<div class="blank">Every hypothesis tested in both runs ended the same way.</div>`}`;
+}
+
+document.querySelector(".tabs").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-tab]");
+  if (!b || !cur) return;
+  cur.tab = b.dataset.tab;
+  other = null;
+  $("compare").value = "";
+  paint();
+});
+$("compare").addEventListener("change", async (e) => {
+  other = e.target.value ? await api(`/api/runs/${e.target.value}`).catch(() => null) : null;
+  if (other && !other.report) other = null;
+  paint();
+});
+const pickRow = (e) => {
+  const tr = e.target.closest("tr.pick");
+  if (!tr || (e.type === "keydown" && e.key !== "Enter")) return;
+  const same = cur.focus?.level === tr.dataset.level && cur.focus?.id === tr.dataset.hid;
+  setFocus(same ? null : { level: tr.dataset.level, id: tr.dataset.hid });
+};
+$("table").addEventListener("click", pickRow);
+$("table").addEventListener("keydown", pickRow);
+$("stop").addEventListener("click", async () => {
+  $("stop").disabled = true;
+  await api(`/api/runs/${cur.id}/stop`, {}).catch(() => {});
+});
+
+// ── Live activity trace ──
+
+const trace = $("trace");
+const off = new Set(); // event kinds hidden by the filter chips
+let queue = [];
+let follow = true;
+
+function resetTrace() {
+  queue = [];
+  follow = true;
+  trace.innerHTML = `<div class="blank" id="trace-empty">No activity yet. Start a run to watch the attacker work.</div>`;
+  $("latest").hidden = true;
+  $("focus-clear").hidden = true;
+}
+
+function addRow(ev) {
+  cur.n++;
+  queue.push(ev);
+  paint();
+}
+
+const LABEL = { run: "run", env: "target", hypothesis: "test", think: "thinks", msg: "attacks", reply: "replies", budget: "budget", error: "error", log: "log" };
+function rowEl(ev) {
+  const k = ev.kind;
+  const d = document.createElement("div");
+  d.className = "row " + k;
+  d.dataset.kind = k;
+  d.dataset.level = ev.level ?? "";
+  d.dataset.hid = ev.hid ?? (k === "hypothesis" ? ev.id : "");
+  if (k === "level") {
+    d.textContent = `Level ${ev.level}, ${LEVEL_NOTE[ev.level] ?? ""}`;
+    return d;
+  }
+  let label = LABEL[k] ?? k;
+  let text = ev.text ?? ev.message ?? "";
+  if (k === "run") text = `${ev.scenario}: ${ev.attacker_model} attacking ${ev.target_model}`;
+  else if (k === "hypothesis") text = `${ev.id} ${ev.title} (${ev.invariant})`;
+  else if (k === "verdict") {
+    label = ev.vulnerable ? "broke" : "held";
+    d.classList.add(label);
+    text = ev.vulnerable ? `Guardrail broke. Database check: ${ev.detail}` : "Guardrail held. The database shows no violation.";
+  } else if (k === "benign") {
+    label = ev.served ? "served" : "refused";
+    if (!ev.served) d.classList.add("refused");
+    text = `Honest request ${ev.id}: ${ev.request}`;
+  } else if (k === "budget") text = `${ev.used} of ${ev.max} requests used`;
+  else if (k === "error") text = `${ev.where}: ${ev.message}`;
+  else if (k === "reply" && ev.ms) d.title = `Answered in ${(ev.ms / 1000).toFixed(1)}s`;
+
+  const cell = (cls, value) => {
+    const s = document.createElement("span");
+    s.className = cls;
+    s.textContent = value;
+    d.append(s);
+    return s;
+  };
+  cell("t", clock(ev.ts));
+  cell("who", [ev.level, ev.hid].filter(Boolean).join(" "));
+  cell("k", label);
+  const x = cell("x", text);
+  if (text.length > 500 || text.split("\n").length > 5) {
+    x.classList.add("clamp");
+    x.title = "Click to show all of it";
+  }
+  d.hidden = !shown(d);
+  return d;
+}
+
+function shown(row) {
+  const { kind, level, hid } = row.dataset;
+  if (off.has(kind)) return false;
+  return !cur.focus || (level === cur.focus.level && hid === cur.focus.id);
+}
+const refilter = () => {
+  for (const r of trace.children) if (r.dataset.kind) r.hidden = !shown(r);
+};
+
+function flushTrace() {
+  if (queue.length) {
+    $("trace-empty")?.remove();
+    const frag = document.createDocumentFragment();
+    for (const ev of queue) frag.append(rowEl(ev));
+    queue = [];
+    trace.append(frag);
+    if (follow) trace.scrollTop = trace.scrollHeight;
+    else $("latest").hidden = false;
+  }
+  $("trace-count").textContent = cur.n ? `${cur.n} events` : "";
+}
+
+function renderStatus() {
+  const s = cur.summary;
+  const live = isLive(s.status);
+  $("foot").classList.toggle("live", live);
+  const broke = allHyps().filter((h) => h.state === "broke").length;
+  let text;
+  if (s.status === "planning") text = "Planning the world and the attack hypotheses";
+  else if (live && cur.last) {
+    const lv = cur.levels.get(cur.last.level);
+    const h = lv?.hyps.get(cur.last.id);
+    text = `${cur.last.level} ${cur.last.id}: ${h?.title ?? ""}, ${lv?.used ?? 0}${lv?.max ? "/" + lv.max : ""} requests used, ${broke} broke so far`;
+  } else if (live) text = "Starting the target";
+  else if (!cur.n) text = "No activity recorded for this run.";
+  else text = `Run ${s.status}. ${broke} ${broke === 1 ? "guardrail" : "guardrails"} broke.`;
+  $("status").textContent = text;
+}
+
+function setFocus(f) {
+  cur.focus = f;
+  const chip = $("focus-clear");
+  chip.hidden = !f;
+  if (f) chip.textContent = `Only ${f.level} ${f.id}. Show everything`;
+  refilter();
+  follow = !f;
+  trace.scrollTop = f ? 0 : trace.scrollHeight;
+  $("latest").hidden = true;
+  paint();
+}
+
+$("focus-clear").addEventListener("click", () => setFocus(null));
+for (const chip of document.querySelectorAll(".chip[data-kind]")) {
+  chip.addEventListener("click", () => {
+    const on = chip.getAttribute("aria-pressed") !== "true";
+    chip.setAttribute("aria-pressed", on);
+    off[on ? "delete" : "add"](chip.dataset.kind);
+    refilter();
+  });
+}
+$("expand").addEventListener("click", () => {
+  const tall = $("activity").classList.toggle("tall");
+  $("expand").setAttribute("aria-pressed", tall);
+});
+trace.addEventListener("scroll", () => {
+  follow = trace.scrollTop + trace.clientHeight >= trace.scrollHeight - 40;
+  if (follow) $("latest").hidden = true;
+});
+trace.addEventListener("click", (e) => {
+  const x = e.target.closest(".x[title]");
+  if (x && !getSelection().toString()) x.classList.toggle("clamp");
+});
+$("latest").addEventListener("click", () => {
+  follow = true;
+  trace.scrollTop = trace.scrollHeight;
+  $("latest").hidden = true;
+});
+
+// ── Start ──
+refresh().then(() => {
+  const id = decodeURIComponent(location.hash.slice(1));
+  const first = app.runs.find((r) => r.id === id) ?? app.runs[0];
+  if (first) select(first.id);
+});
+setInterval(refresh, 4000);
+</script>
+</body>
+</html>

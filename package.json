@@ -12,6 +12,7 @@
   },
   "scripts": {
     "guardbench": "tsx src/cli.ts",
+    "ui": "tsx src/cli.ts ui",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
