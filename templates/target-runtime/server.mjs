@@ -21,6 +21,7 @@ const { values } = parseArgs({
     db: { type: "string", default: "target.db" },
     level: { type: "string", default: "L1" },
     port: { type: "string", default: "8080" },
+    host: { type: "string", default: "127.0.0.1" },
     model: { type: "string" },
   },
 });
@@ -232,4 +233,4 @@ const server = createServer(async (req, res) => {
     send(500, { error: e instanceof Error ? e.message : String(e) });
   }
 });
-server.listen(Number(values.port), () => console.log(`target-runtime listening on ${values.port} (level ${LEVEL})`));
+server.listen(Number(values.port), values.host, () => console.log(`target-runtime listening on ${values.host}:${values.port} (level ${LEVEL})`));

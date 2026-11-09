@@ -25,10 +25,8 @@ export interface RunInputs {
   eventsFile: string;
 }
 
-const randomPort = () => 8800 + Math.floor(Math.random() * 150);
-
 /** API keys to redact from the event log and trace. */
-function collectSecrets(): string[] {
+export function collectSecrets(): string[] {
   const envs = ["OPENROUTER_API_KEY", "NVIDIA_API_KEY", "OPENAI_API_KEY", "TOGETHER_API_KEY", "E2B_API_KEY", "ANTHROPIC_API_KEY"];
   return envs.map((e) => process.env[e]).filter((v): v is string => !!v);
 }
@@ -67,7 +65,6 @@ export async function runScenario(inputs: RunInputs): Promise<Report> {
           dbPath: join(runDir, `target-${level}.db`),
           level,
           model: config.target.model,
-          port: randomPort(),
         });
       }
       events.emit({ kind: "env", message: `${backend} target ready at ${target.url} (level ${level})` });
